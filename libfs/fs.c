@@ -65,27 +65,15 @@ int fs_mount(const char *diskname)
 	if (fat.arr[0] != 0xFFFF)
 		return -1; // The first entry of the FAT (entry #0) is always invalid is 0xFFFF.
 
-	// load the root dir infos from the giant block to the buffer then parse
-	void *buffer = malloc(BLOCK_SIZE);
-	retval = block_read(super.root_index, buffer);
+	// load the root dir infos
+	retval = block_read(super.root_index, &rootdir);
 	if (retval == -1)
 		return -1;
-	for (int entry_ind = 0; entry_ind < 128; entry_ind++) {
-		// each entry is 32 bytes
-		// memcopy 128 parts of buffer to each root directory entry
-		memcpy(&(rootdir.entry[entry_ind]), buffer + entry_ind * 32, 32); //buffer + entry_ind * 32 is the buffer + offest
-	}
-
 	return 0;
 }
 
 int fs_umount(void)
 {
-	/*
-	void *buffer = malloc(BLOCK_SIZE);
-	memcpy(buffer, &super, BLOCK_SIZE);
-	block_write(0, buffer);
-	 */
 	int retval = block_write(0, &super);
 	if (retval == -1)
 		return -1;

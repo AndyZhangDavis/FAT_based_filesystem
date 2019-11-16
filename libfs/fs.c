@@ -29,7 +29,7 @@ struct FAT {
 struct FAT fat;
 
 struct Entry {
-	uint8_t filename[16];
+	uint8_t filename[FS_FILENAME_LEN];
 	uint32_t size_file;
 	uint16_t first_data_index;
 	uint8_t  paddings[10];
@@ -40,6 +40,18 @@ struct RootDirectory {
 } __attribute__((packed));
 
 struct RootDirectory rootdir;
+
+struct File {
+	uint8_t filename[FS_FILENAME_LEN];
+	size_t offset;
+};
+
+struct FilesTable {
+	int num_open; //initialized to 0
+	struct File file[FS_OPEN_MAX_COUNT];
+};
+
+struct FilesTable files_table;
 
 int fs_mount(const char *diskname)
 {
@@ -109,7 +121,7 @@ int fs_info(void)
 	printf("fat_free_ratio=%d/%d\n", num_free_fat,super.data_blocks_num);
 
 	int num_free_root = 0;
-	for(int i = 0; i < 128; i++){
+	for(int i = 0; i < FS_FILE_MAX_COUNT; i++){
 		if (rootdir.entry[i].filename[0] == '\0')
 			num_free_root++;
 	}
@@ -120,11 +132,11 @@ int fs_info(void)
 
 int fs_create(const char *filename)
 {
-	if (filename == NULL || strlen(filename) > 16)
+	if (filename == NULL || strlen(filename) > FS_FILENAME_LEN)
 		return -1;
 	// NEXT we check first before we create file
 	int file_count = 0;
-	for (int i = 0; i < 128; i++) {
+	for (int i = 0; i < FS_FILE_MAX_COUNT; i++) {
 		if (rootdir.entry[i].filename[0] != '\0') {
 			file_count += 1; // if the entry isn't for empty file, file count incremented
 		}
@@ -135,10 +147,10 @@ int fs_create(const char *filename)
 	if (file_count >= FS_FILE_MAX_COUNT)
 		return -1; // the root directory already contains FS_FILE_MAX_COUNT files.
 	//done checking, move forward for creation
-	for (int i = 0; i < 128; i++) {
+	for (int i = 0; i < FS_FILE_MAX_COUNT; i++) {
 		//An empty entry is defined by the first character of the entry’s filename being equal to the NULL character.
 		if (rootdir.entry[i].filename[0] == '\0') {
-			memcpy(rootdir.entry[i].filename, filename, 16); // copy the file name
+			memcpy(rootdir.entry[i].filename, filename, FS_FILENAME_LEN); // copy the file name
 			rootdir.entry[i].size_file = 0; // the root dir has size of 0
 			rootdir.entry[i].first_data_index = 0xFFFF;  // the first data starts from 0xFFFF
 			block_write(super.root_index, &rootdir); // write the root directory into block
@@ -155,7 +167,7 @@ int fs_delete(const char *filename)
 		return -1;
 	uint16_t data_index = 0xFFFF;
 	int file_found = -1;
-	for (int i = 0; i < 128; i++) {
+	for (int i = 0; i < FS_FILE_MAX_COUNT; i++) {
 		if (strcmp((char*)rootdir.entry[i].filename, filename) == 0) {
 			file_found = 1; // find the file!
 			data_index = rootdir.entry[i].first_data_index; // find the first data index
@@ -184,7 +196,7 @@ int fs_delete(const char *filename)
 
 int fs_ls(void)
 {
-	for (int i = 0; i < 128; i++) {
+	for (int i = 0; i < FS_FILE_MAX_COUNT; i++) {
 		//An empty entry is defined by the first character of the entry’s filename being equal to the NULL character.
 		if (rootdir.entry[i].filename[0] == '\0') {
 			struct Entry cur = rootdir.entry[i];
@@ -197,17 +209,54 @@ int fs_ls(void)
 
 int fs_open(const char *filename)
 {
+	if (filename == NULL)
+		return -1; //-1 if @filename is invalid
+	// check whether file exists in root directory
+	int fd_find = -1;
+	for (int i = 0; i < FS_FILE_MAX_COUNT; i++) {
+		if (strcmp((char*)rootdir.entry[i].filename, filename) == 0)
+			fd_find = 1;
+	}
+	if (fd_find == -1)
+		return -1; // there is no file named @filename to open
+	// check whether we have over 32 files opened
+	if (files_table.num_open == FS_OPEN_MAX_COUNT)
+		return -1; // _OPEN_MAX_COUNT files currently open
 
-	return 0;
+	//after 3 checks we proceed to open the file
+	int ret_fd = -1;
+	for (int i = 0; i < FS_OPEN_MAX_COUNT; i++) {
+		if (files_table.file[i].filename[0] == '\0') {
+			// if the filename first character is NULL, then it's empty file slot
+			files_table.num_open++; //increament open files count
+			memcpy(files_table.file[i].filename, filename, FS_FILENAME_LEN); // copy the file name
+			files_table.file[i].offset = 0; //set offset to 0
+			ret_fd = i; // get the fd to return
+			break;
+		}
+	}
+	if (ret_fd == -1)
+		return -1; //if ret fd isn't updated at all
+	return ret_fd;
 }
 
 int fs_close(int fd)
 {
+	if (fd > 31 || fd < 0)
+		return -1; // out of bounds
+	if (files_table.file[fd].filename[0] == '\0')
+		return -1; // not currently opened
+	// now we proceed to reset
+	files_table.file[fd].filename[0] = '\0'; // change the file name to NULL
+	files_table.file[fd].offset = 0; // reset offset
+
+	files_table.num_open--; // decrease the open count
 	return 0;
 }
 
 int fs_stat(int fd)
 {
+	
 	return 0;
 }
 

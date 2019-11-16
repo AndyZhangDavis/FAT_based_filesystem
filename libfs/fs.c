@@ -36,7 +36,7 @@ struct Entry {
 }__attribute__((packed));
 
 struct RootDirectory {
-	struct Entry entry[128];
+	struct Entry entry[FS_FILE_MAX_COUNT];
 } __attribute__((packed));
 
 struct RootDirectory rootdir;
@@ -126,7 +126,7 @@ int fs_info(void)
 			num_free_root++;
 	}
 
-	printf("rdir_free_ratio=%d/%d\n", num_free_root, 128);
+	printf("rdir_free_ratio=%d/%d\n", num_free_root, FS_FILE_MAX_COUNT);
 	return 0;
 }
 
@@ -256,7 +256,7 @@ int fs_close(int fd)
 
 int fs_stat(int fd)
 {
-	
+
 	return 0;
 }
 

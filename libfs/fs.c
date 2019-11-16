@@ -55,12 +55,12 @@ int fs_mount(const char *diskname)
 	// The huge fat array consists of num_data_blocks uint16_t elements
 	fat.arr = (uint16_t*)malloc(super.data_blocks_num * sizeof(uint16_t));
 	size_t i = 1;
+	void *buffer = (void*)malloc(BLOCK_SIZE);
 	for (; i < super.root_index; i++) {
 		// for each (i-1)th fat block, loads
 		// fat block offset starts at 1 instead of 0, so mapping is i-1
-		retval = block_read(i, fat.arr + (i-1)*BLOCK_SIZE);
-		if (retval == -1)
-			return -1;
+		block_read(i, buffer);
+		memcpy(fat.arr + (i-1)*BLOCK_SIZE, buffer, BLOCK_SIZE);
 	}
 	if (fat.arr[0] != 0xFFFF)
 		return -1; // The first entry of the FAT (entry #0) is always invalid is 0xFFFF.

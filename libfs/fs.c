@@ -280,6 +280,12 @@ int fs_stat(int fd)
 
 int fs_lseek(int fd, size_t offset)
 {
+	int size = fs_stat(fd);
+	if (size == -1)
+		return -1;
+	if (offset > size)
+		return -1;
+	files_table.file[fd].offset = offset;
 	return 0;
 }
 

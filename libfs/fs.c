@@ -59,10 +59,16 @@ int fs_mount(const char *diskname)
 	if (retval == -1)
 		return -1; // -1 if virtual disk file @diskname cannot be opened
 	block_read(0, &super);
+	if (1 + super.fat_blocks_num + 1 + super.data_blocks_num != super.total_blocks_num)
+		return -1; //super(1) + FAT + root(1) + data == TOTAL
 	if(super.total_blocks_num != block_disk_count())
 		return -1;
 	if (super.fat_blocks_num != super.data_blocks_num * 2 / BLOCK_SIZE)
 		return -1; //calculation doesn't agree with super info
+	if (super.fat_blocks_num + 1 != super.root_index)
+		return -1; // super #0, FAT #1,2,3,4 --> root: 5
+	if (super.root_index + 1 != super.data_start)
+		return -1;
 
 	// The huge fat array consists of num_data_blocks uint16_t elements
 	fat.arr = (uint16_t*)malloc(super.data_blocks_num * sizeof(uint16_t));

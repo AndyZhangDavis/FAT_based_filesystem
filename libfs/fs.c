@@ -6,6 +6,7 @@
 #include <inttypes.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <math.h>
 
 #include "disk.h"
 #include "fs.h"
@@ -63,7 +64,7 @@ int fs_mount(const char *diskname)
 		return -1; //super(1) + FAT + root(1) + data == TOTAL
 	if(super.total_blocks_num != block_disk_count())
 		return -1;
-	if (super.fat_blocks_num != super.data_blocks_num * 2 / BLOCK_SIZE)
+	if (super.fat_blocks_num != (int)ceil((double)super.data_blocks_num * 2 / BLOCK_SIZE))
 		return -1; //calculation doesn't agree with super info
 	if (super.fat_blocks_num + 1 != super.root_index)
 		return -1; // super #0, FAT #1,2,3,4 --> root: 5
@@ -121,6 +122,7 @@ int fs_info(void)
 
 	int num_free_fat = 0;
 	for(int i = 0; i < super.data_blocks_num; i++){
+		//MAYBE i should start from 1 here??????
 		if(fat.arr[i] == 0)
 			num_free_fat ++;
 	}
@@ -289,13 +291,87 @@ int fs_lseek(int fd, size_t offset)
 	return 0;
 }
 
+int FAT_ind(size_t offset, uint16_t start_index) {
+	int count_offset = 0;
+	uint16_t data_index = start_index;
+	while (data_index != 0xFFFF && count_offset != offset) {
+		// while the data_index doesn't reach to the end of the file
+		// AND meanwhile we haven't reached the offset position
+		data_index = fat.arr[data_index]; // update data_index through block chain
+		count_offset ++; // increment counts
+	}
+	return data_index;
+}
+
+int FAT_1stEmpty_ind() {
+	int i;
+	for (i = 1; i < super.data_blocks_num; i++){
+		//i should definitely start from 1 here!
+		if (fat.arr[i] == 0){
+			return i;
+		}
+	}
+	return -1;
+}
+
 int fs_write(int fd, void *buf, size_t count)
 {
+	if (count < 0)
+		return -1;
+	if (fd > 31 || fd < 0)
+		return -1; // out of bounds
+	if (files_table.file[fd].filename[0] == '\0')
+		return -1; // not currently opened
+	char *filename = (char*)files_table.file[fd].filename; //get the filename
+	size_t offset = files_table.file[fd].offset;
+	int size = fs_stat(fd); //get fd size
+	uint16_t start_index = 0xFFFF;
+	//now we get the first data index for file
+	for (int i = 0; i < FS_FILE_MAX_COUNT; i++) {
+		if (strcmp((char*)rootdir.entry[i].filename, filename) == 0) {
+			start_index = rootdir.entry[i].first_data_index;
+			break;
+		}
+	}
+	if (start_index == 0xFFFF)
+		return -1; //fd not found, so weird
+	if (offset == size && count != 0) //if offset is at the very end of the file
+		return 0; //cannot read anything, return
+
+	int start= FAT_ind(offset, start_index);
+
 	return 0;
 }
 
 int fs_read(int fd, void *buf, size_t count)
 {
+	if (count < 0)
+		return -1;
+	if (fd > 31 || fd < 0)
+		return -1; // out of bounds
+	if (files_table.file[fd].filename[0] == '\0')
+		return -1; // not currently opened
+	char *filename = (char*)files_table.file[fd].filename; //get the filename
+	size_t offset = files_table.file[fd].offset;
+	int size = fs_stat(fd); //get fd size
+	uint16_t start_index = 0xFFFF;
+	//now we get the first data index for file
+	for (int i = 0; i < FS_FILE_MAX_COUNT; i++) {
+		if (strcmp((char*)rootdir.entry[i].filename, filename) == 0) {
+			start_index = rootdir.entry[i].first_data_index;
+			break;
+		}
+	}
+	if (start_index == 0xFFFF)
+		return -1; //fd not found, so weird
+	if (offset == size && count != 0) //if offset is at the very end of the file
+		return 0; //cannot read anything, return
+	void *bounce_buffer = (void*)malloc(BLOCK_SIZE);
+	for (size_t i = 0; i < super.data_blocks_num; i++) {
+		block_read(i+super.data_start, bounce_buffer);
+
+	}
+
 	return 0;
 }
 

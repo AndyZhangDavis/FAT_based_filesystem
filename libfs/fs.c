@@ -200,7 +200,7 @@ int fs_ls(void)
 		//An empty entry is defined by the first character of the entry’s filename being equal to the NULL character.
 		if (rootdir.entry[i].filename[0] == '\0') {
 			struct Entry cur = rootdir.entry[i];
-			printf("\nfile: %s, size: %i, data_blk: %i", (char *) cur.filename, cur.size_file, cur.first_data_index);
+			printf("\nfile: %s, size: %i, data_blk: %i", (char*)cur.filename, cur.size_file, cur.first_data_index);
 		}
 	}
 	printf("\n");
@@ -256,8 +256,20 @@ int fs_close(int fd)
 
 int fs_stat(int fd)
 {
+	if (fd > 31 || fd < 0)
+		return -1; // out of bounds
+	if (files_table.file[fd].filename[0] == '\0')
+		return -1; // not currently opened
+	char *filename = (char*)files_table.file[fd].filename;
 
-	return 0;
+	int ret_size = -1;
+	for (int i = 0; i < FS_FILE_MAX_COUNT; i++) {
+		if (strcmp((char*)rootdir.entry[i].filename, filename) == 0) {
+			// if the name matches
+			ret_size = rootdir.entry[i].size_file;
+		}
+	}
+	return ret_size;
 }
 
 int fs_lseek(int fd, size_t offset)

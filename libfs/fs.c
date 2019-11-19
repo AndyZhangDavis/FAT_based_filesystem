@@ -5,9 +5,6 @@
 #include <string.h>
 #include <inttypes.h>
 #include <unistd.h>
-#include <fcntl.h>
-#include <math.h>
-
 #include "disk.h"
 #include "fs.h"
 
@@ -64,7 +61,7 @@ int fs_mount(const char *diskname)
 		return -1; //super(1) + FAT + root(1) + data == TOTAL
 	if(super.total_blocks_num != block_disk_count())
 		return -1;
-	if (super.fat_blocks_num != (int)ceil((double)super.data_blocks_num * 2 / BLOCK_SIZE))
+	if (super.fat_blocks_num != super.data_blocks_num * 2 / BLOCK_SIZE)
 		return -1; //calculation doesn't agree with super info
 	if (super.fat_blocks_num + 1 != super.root_index)
 		return -1; // super #0, FAT #1,2,3,4 --> root: 5

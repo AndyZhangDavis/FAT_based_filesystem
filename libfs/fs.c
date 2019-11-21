@@ -64,7 +64,7 @@ int fs_mount(const char *diskname)
 	int total_bytes = super.data_blocks_num * 2;
 	uint8_t ceilVal = (uint8_t )(total_bytes / BLOCK_SIZE) + ((total_bytes % BLOCK_SIZE) != 0);
 	if (super.fat_blocks_num != ceilVal)
-		return -1; // revise it to ceilVal
+		return -1; // ceil of total_bytes / BLOCK_SIZE != fat num
 	if (super.fat_blocks_num + 1 != super.root_index)
 		return -1; // super #0, FAT #1,2,3,4 --> root: 5
 	if (super.root_index + 1 != super.data_start)
@@ -121,7 +121,6 @@ int fs_info(void)
 
 	int num_free_fat = 0;
 	for(int i = 0; i < super.data_blocks_num; i++){
-		//MAYBE i should start from 1 here??????
 		if(fat.arr[i] == 0)
 			num_free_fat ++;
 	}
@@ -291,14 +290,15 @@ int fs_lseek(int fd, size_t offset)
 	return 0;
 }
 
-int FAT_ind(size_t offset, uint16_t start_index) {
-	int count_offset = 0;
+int data_ind(size_t offset, uint16_t start_index) {
+	//return index of data block according to the offset
+	int count_offset = 4095; //initial boundary is the end of the file
 	uint16_t data_index = start_index;
-	while (data_index != 0xFFFF && count_offset != offset) {
+	while (data_index != 0xFFFF && count_offset < offset) {
 		// while the data_index doesn't reach to the end of the file
-		// AND meanwhile we haven't reached the offset position
+		// AND meanwhile we haven't reached the next of offset position
 		data_index = fat.arr[data_index]; // update data_index through block chain
-		count_offset ++; // increment counts
+		count_offset += 4096; // increment counts
 	}
 	return data_index;
 }
@@ -325,20 +325,22 @@ int fs_write(int fd, void *buf, size_t count)
 	char *filename = (char*)files_table.file[fd].filename; //get the filename
 	size_t offset = files_table.file[fd].offset;
 	int size = fs_stat(fd); //get fd size
-	uint16_t start_index = 0xFFFF;
+	uint16_t file_start = 0xFFFF;
 	//now we get the first data index for file
 	for (int i = 0; i < FS_FILE_MAX_COUNT; i++) {
 		if (strcmp((char*)rootdir.entry[i].filename, filename) == 0) {
-			start_index = rootdir.entry[i].first_data_index;
+			file_start = rootdir.entry[i].first_data_index;
 			break;
 		}
 	}
-	if (start_index == 0xFFFF)
-		return -1; //fd not found, so weird
+	if (file_start == 0xFFFF || file_start == 0)
+		return -1; //fd not found OR starts with 0th fat, so weird
 	if (offset == size && count != 0) //if offset is at the very end of the file
 		return 0; //cannot read anything, return
 
-	int start= FAT_ind(offset, start_index);
+	int start= data_ind(offset, file_start); //get the starting offset
+	int next = FAT_1stEmpty_ind();
+
 
 	return 0;
 }
@@ -354,23 +356,24 @@ int fs_read(int fd, void *buf, size_t count)
 	char *filename = (char*)files_table.file[fd].filename; //get the filename
 	size_t offset = files_table.file[fd].offset;
 	int size = fs_stat(fd); //get fd size
-	uint16_t start_index = 0xFFFF;
+	uint16_t file_start = 0xFFFF;
 	//now we get the first data index for file
 	for (int i = 0; i < FS_FILE_MAX_COUNT; i++) {
 		if (strcmp((char*)rootdir.entry[i].filename, filename) == 0) {
-			start_index = rootdir.entry[i].first_data_index;
+			file_start = rootdir.entry[i].first_data_index;
 			break;
 		}
 	}
-	if (start_index == 0xFFFF)
-		return -1; //fd not found, so weird
+	if (file_start == 0xFFFF || file_start == 0)
+		return -1; //fd not found OR starts with 0th fat, so weird
 	if (offset == size && count != 0) //if offset is at the very end of the file
 		return 0; //cannot read anything, return
+	// Reading consists of 3 parts in total: Head(bounce), Middle, Tail(bounce)
+	// Begin Reading the First Sector
 	void *bounce_buffer = (void*)malloc(BLOCK_SIZE);
-	for (size_t i = 0; i < super.data_blocks_num; i++) {
-		block_read(i+super.data_start, bounce_buffer);
+	int start_reading_index = data_ind(offset, file_start);
 
-	}
 
+	free(bounce_buffer);
 	return 0;
 }

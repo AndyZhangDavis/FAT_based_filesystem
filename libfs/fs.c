@@ -51,8 +51,6 @@ struct FilesTable {
 
 struct FilesTable files_table;
 
-uint8_t global_buffer[BLOCK_SIZE];
-
 int fs_mount(const char *diskname)
 {
 	int retval = block_disk_open(diskname);
@@ -75,11 +73,12 @@ int fs_mount(const char *diskname)
 	// The huge fat array consists of num_data_blocks uint16_t elements
 	fat.arr = (uint16_t*)malloc(super.data_blocks_num * sizeof(uint16_t));
 	size_t i = 1;
+	void *buffer = (void*)malloc(BLOCK_SIZE);
 	for (; i < super.root_index; i++) {
 		// for each (i-1)th fat block, loads
 		// fat block offset starts at 1 instead of 0, so mapping is i-1
-		block_read(i, global_buffer);
-		memcpy(fat.arr + (i-1)*BLOCK_SIZE, global_buffer, BLOCK_SIZE);
+		block_read(i, buffer);
+		memcpy(fat.arr + (i-1)*BLOCK_SIZE, buffer, BLOCK_SIZE);
 	}
 	if (fat.arr[0] != 0xFFFF)
 		return -1; // The first entry of the FAT (entry #0) is always invalid is 0xFFFF.
@@ -317,7 +316,6 @@ int FAT_1stEmpty_ind() {
 
 int fs_write(int fd, void *buf, size_t count)
 {
-	/*
 	if (count < 0)
 		return -1;
 	if (fd > 31 || fd < 0)
@@ -341,13 +339,12 @@ int fs_write(int fd, void *buf, size_t count)
 		return 0; //cannot read anything, return
 
 	int start= FAT_ind(offset, start_index);
-	*/
+
 	return 0;
 }
 
 int fs_read(int fd, void *buf, size_t count)
 {
-	/*
 	if (count < 0)
 		return -1;
 	if (fd > 31 || fd < 0)
@@ -374,7 +371,7 @@ int fs_read(int fd, void *buf, size_t count)
 		block_read(i+super.data_start, bounce_buffer);
 
 	}
-	*/
+
 	return 0;
 }
 

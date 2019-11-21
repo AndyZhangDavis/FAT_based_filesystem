@@ -61,8 +61,10 @@ int fs_mount(const char *diskname)
 		return -1; //super(1) + FAT + root(1) + data == TOTAL
 	if(super.total_blocks_num != block_disk_count())
 		return -1;
-	if (super.fat_blocks_num != super.data_blocks_num * 2 / BLOCK_SIZE)
-		return -1; //calculation doesn't agree with super info
+	int total_bytes = super.data_blocks_num * 2;
+	uint8_t ceilVal = (uint8_t )(total_bytes / BLOCK_SIZE) + ((total_bytes % BLOCK_SIZE) != 0);
+	if (super.fat_blocks_num != ceilVal)
+		super.fat_blocks_num = ceilVal; // revise it to ceilVal
 	if (super.fat_blocks_num + 1 != super.root_index)
 		return -1; // super #0, FAT #1,2,3,4 --> root: 5
 	if (super.root_index + 1 != super.data_start)

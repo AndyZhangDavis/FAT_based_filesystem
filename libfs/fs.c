@@ -64,7 +64,7 @@ int fs_mount(const char *diskname)
 	int total_bytes = super.data_blocks_num * 2;
 	uint8_t ceilVal = (uint8_t )(total_bytes / BLOCK_SIZE) + ((total_bytes % BLOCK_SIZE) != 0);
 	if (super.fat_blocks_num != ceilVal)
-		return -1; // mismatch
+		return -1; // revise it to ceilVal
 	if (super.fat_blocks_num + 1 != super.root_index)
 		return -1; // super #0, FAT #1,2,3,4 --> root: 5
 	if (super.root_index + 1 != super.data_start)
@@ -205,8 +205,7 @@ int fs_ls(void)
 {
 	for (int i = 0; i < FS_FILE_MAX_COUNT; i++) {
 		//An empty entry is defined by the first character of the entry’s filename being equal to the NULL character.
-		if (rootdir.entry[i].filename[0] != '\0') {
-			// if the file isn't NULL entry, we access the current entry
+		if (rootdir.entry[i].filename[0] == '\0') {
 			struct Entry cur = rootdir.entry[i];
 			printf("\nfile: %s, size: %i, data_blk: %i", (char*)cur.filename, cur.size_file, cur.first_data_index);
 		}
@@ -374,4 +373,3 @@ int fs_read(int fd, void *buf, size_t count)
 
 	return 0;
 }
-

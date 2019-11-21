@@ -51,6 +51,8 @@ struct FilesTable {
 
 struct FilesTable files_table;
 
+uint8_t global_buffer[BLOCK_SIZE];
+
 int fs_mount(const char *diskname)
 {
 	int retval = block_disk_open(diskname);
@@ -64,7 +66,7 @@ int fs_mount(const char *diskname)
 	int total_bytes = super.data_blocks_num * 2;
 	uint8_t ceilVal = (uint8_t )(total_bytes / BLOCK_SIZE) + ((total_bytes % BLOCK_SIZE) != 0);
 	if (super.fat_blocks_num != ceilVal)
-		return -1; // revise it to ceilVal
+		return -1; // mismatch
 	if (super.fat_blocks_num + 1 != super.root_index)
 		return -1; // super #0, FAT #1,2,3,4 --> root: 5
 	if (super.root_index + 1 != super.data_start)
@@ -73,12 +75,11 @@ int fs_mount(const char *diskname)
 	// The huge fat array consists of num_data_blocks uint16_t elements
 	fat.arr = (uint16_t*)malloc(super.data_blocks_num * sizeof(uint16_t));
 	size_t i = 1;
-	void *buffer = (void*)malloc(BLOCK_SIZE);
 	for (; i < super.root_index; i++) {
 		// for each (i-1)th fat block, loads
 		// fat block offset starts at 1 instead of 0, so mapping is i-1
-		block_read(i, buffer);
-		memcpy(fat.arr + (i-1)*BLOCK_SIZE, buffer, BLOCK_SIZE);
+		block_read(i, global_buffer);
+		memcpy(fat.arr + (i-1)*BLOCK_SIZE, global_buffer, BLOCK_SIZE);
 	}
 	if (fat.arr[0] != 0xFFFF)
 		return -1; // The first entry of the FAT (entry #0) is always invalid is 0xFFFF.
@@ -206,7 +207,7 @@ int fs_ls(void)
 	for (int i = 0; i < FS_FILE_MAX_COUNT; i++) {
 		//An empty entry is defined by the first character of the entry’s filename being equal to the NULL character.
 		if (rootdir.entry[i].filename[0] != '\0') {
-			// if the file isn't NULL entry, access current entry
+			// if the file isn't NULL entry, we access the current entry
 			struct Entry cur = rootdir.entry[i];
 			printf("\nfile: %s, size: %i, data_blk: %i", (char*)cur.filename, cur.size_file, cur.first_data_index);
 		}
@@ -316,6 +317,7 @@ int FAT_1stEmpty_ind() {
 
 int fs_write(int fd, void *buf, size_t count)
 {
+	/*
 	if (count < 0)
 		return -1;
 	if (fd > 31 || fd < 0)
@@ -339,12 +341,13 @@ int fs_write(int fd, void *buf, size_t count)
 		return 0; //cannot read anything, return
 
 	int start= FAT_ind(offset, start_index);
-
+	*/
 	return 0;
 }
 
 int fs_read(int fd, void *buf, size_t count)
 {
+	/*
 	if (count < 0)
 		return -1;
 	if (fd > 31 || fd < 0)
@@ -371,7 +374,7 @@ int fs_read(int fd, void *buf, size_t count)
 		block_read(i+super.data_start, bounce_buffer);
 
 	}
-
+	*/
 	return 0;
 }
 

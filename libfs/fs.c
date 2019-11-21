@@ -203,14 +203,15 @@ int fs_delete(const char *filename)
 
 int fs_ls(void)
 {
+	printf("FS Ls:\n");
 	for (int i = 0; i < FS_FILE_MAX_COUNT; i++) {
 		//An empty entry is defined by the first character of the entry’s filename being equal to the NULL character.
-		if (rootdir.entry[i].filename[0] == '\0') {
+		if (rootdir.entry[i].filename[0] != '\0') {
+			// if the file entry isn't null, we access the struct
 			struct Entry cur = rootdir.entry[i];
-			printf("\nfile: %s, size: %i, data_blk: %i", (char*)cur.filename, cur.size_file, cur.first_data_index);
+			printf("file: %s, size: %i, data_blk: %i\n", (char*)cur.filename, cur.size_file, cur.first_data_index);
 		}
 	}
-	printf("\n");
 	return 0;
 }
 

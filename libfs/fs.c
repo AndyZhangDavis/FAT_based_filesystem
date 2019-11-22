@@ -8,6 +8,7 @@
 #include "disk.h"
 #include "fs.h"
 
+
 struct SuperBlock {
 	uint64_t signature;
 	uint16_t total_blocks_num;
@@ -290,34 +291,42 @@ int fs_lseek(int fd, size_t offset)
 	return 0;
 }
 
-int data_ind(size_t offset, uint16_t start_index) {
+int data_ind(size_t offset, uint16_t file_start) {
 	//return index of data block according to the offset
-	int count_offset = 4095; //initial boundary is the end of the file
-	uint16_t data_index = start_index;
+	// file_start is the starting fat index
+	// offset is the file current offset
+	int count_offset = BLOCK_SIZE - 1; //initial boundary is the end of the file
+	uint16_t data_index = file_start;
 	while (data_index != 0xFFFF && count_offset < offset) {
 		// while the data_index doesn't reach to the end of the file
-		// AND meanwhile we haven't reached the next of offset position
+		// AND meanwhile we haven't reached the offset position
+		if (fat.arr[data_index] == 0xFFFF)
+			return data_index + super.data_start; //return index cannot be 0xFFFF
 		data_index = fat.arr[data_index]; // update data_index through block chain
-		count_offset += 4096; // increment counts
+		count_offset += BLOCK_SIZE; // increment counts
 	}
-	return data_index;
+	return data_index + super.data_start; //return data index + offset
 }
 
-int FAT_1stEmpty_ind() {
-	int i;
+uint16_t fat_1stEmpty_ind() {
+	//claim the first empty availble fat entry, and change the value of it to 0XFFFF
+	uint16_t i;
 	for (i = 1; i < super.data_blocks_num; i++){
 		//i should definitely start from 1 here!
 		if (fat.arr[i] == 0){
+			fat.arr[i] = 0xFFFF; //set the entry value to FAT_EOC
 			return i;
 		}
 	}
-	return -1;
+	return (uint16_t)0xFFFF;
 }
 
 int fs_write(int fd, void *buf, size_t count)
 {
-	if (count < 0)
+	if (count < 0 || buf == NULL)
 		return -1;
+	if (count == 0)
+		return 0;
 	if (fd > 31 || fd < 0)
 		return -1; // out of bounds
 	if (files_table.file[fd].filename[0] == '\0')
@@ -327,21 +336,54 @@ int fs_write(int fd, void *buf, size_t count)
 	int size = fs_stat(fd); //get fd size
 	uint16_t file_start = 0xFFFF;
 	//now we get the first data index for file
+	int root_index = -1;
 	for (int i = 0; i < FS_FILE_MAX_COUNT; i++) {
 		if (strcmp((char*)rootdir.entry[i].filename, filename) == 0) {
 			file_start = rootdir.entry[i].first_data_index;
+			root_index = i;
 			break;
 		}
 	}
-	if (file_start == 0xFFFF || file_start == 0)
-		return -1; //fd not found OR starts with 0th fat, so weird
-	if (offset == size && count != 0) //if offset is at the very end of the file
-		return 0; //cannot read anything, return
+	if (root_index == -1 || file_start == 0)
+		return -1; // file not found or file start with FAT 0, so weird
+	if (size == 0) {
+		//the file is empty with no allocated data block
+		rootdir.entry[root_index].first_data_index = fat_1stEmpty_ind();
+		file_start = rootdir.entry[root_index].first_data_index; //update our file_start
+	}
+	void *bounce_buffer = (void*)malloc(BLOCK_SIZE);
+	int data_index = data_ind(offset, file_start);
+	block_read((size_t )data_index, bounce_buffer);
+	size_t bounce_offset = offset % BLOCK_SIZE; //get local bounce offset for the bounce buf(first data block)
+	int size_incrementing_flag = 0;
+	for (size_t i = 0; i < count; i++, bounce_offset++, offset++) {
+		files_table.file[fd].offset = offset; //update file table current offset
+		//for every write operation, we incremented buf offset i, bounce(in_block) offset, file offset
 
-	int start= data_ind(offset, file_start); //get the starting offset
-	int next = FAT_1stEmpty_ind();
+		if (offset >= size) // if reach the end of the file and we are still writing
+			size_incrementing_flag = 1; //start to incrementing the size of the file
 
-
+		if (bounce_offset >= BLOCK_SIZE) {
+			bounce_offset = 0; //reset bounce offset to the beginning
+			if (size_incrementing_flag == 1) {
+				// if we're incrementing size of the file and need new space
+				uint16_t next_fat_index = fat_1stEmpty_ind(); //get current data block index
+				if (next_fat_index == 0xFFFF) {
+					return 0; // return if we have no next data block
+				}
+				fat.arr[data_index] = next_fat_index; //update fat array linked structure, cur points to next
+				data_index = next_fat_index + super.data_start; //data_index = fat index + offset
+			} else {
+				data_index = data_ind(offset, file_start); //get next data block index
+			}
+			block_read((size_t )data_index, bounce_buffer); //get new bounce buffer
+		}
+		memcpy(bounce_buffer + bounce_offset, buf + i, 1); //copy 1 byte each write: buf -> bounce
+		block_write((size_t )data_index, bounce_buffer);
+		if (size_incrementing_flag == 1){ // if we are writing new bytes to the file
+			rootdir.entry[root_index].size_file ++; // increment the size file
+		}
+	}
 	return 0;
 }
 
@@ -358,22 +400,40 @@ int fs_read(int fd, void *buf, size_t count)
 	int size = fs_stat(fd); //get fd size
 	uint16_t file_start = 0xFFFF;
 	//now we get the first data index for file
+	int root_index = -1;
 	for (int i = 0; i < FS_FILE_MAX_COUNT; i++) {
 		if (strcmp((char*)rootdir.entry[i].filename, filename) == 0) {
 			file_start = rootdir.entry[i].first_data_index;
+			root_index = i;
 			break;
 		}
 	}
-	if (file_start == 0xFFFF || file_start == 0)
-		return -1; //fd not found OR starts with 0th fat, so weird
+	if (size == 0) //if the file is empty
+		return 0; //cannot read anything, return 0
+	if (root_index == -1 || file_start == 0xFFFF || file_start == 0)
+		return -1; //fd is not found OR starts with 0th fat, so weird
 	if (offset == size && count != 0) //if offset is at the very end of the file
 		return 0; //cannot read anything, return
-	// Reading consists of 3 parts in total: Head(bounce), Middle, Tail(bounce)
-	// Begin Reading the First Sector
+
 	void *bounce_buffer = (void*)malloc(BLOCK_SIZE);
-	int start_reading_index = data_ind(offset, file_start);
-
-
-	free(bounce_buffer);
+	int start_data_index = data_ind(offset, file_start);
+	block_read((size_t )start_data_index, bounce_buffer);
+	size_t bounce_offset = offset % BLOCK_SIZE; //get local bounce offset for the bounce buf(first data block)
+	for (size_t i = 0; i < count; i++, bounce_offset++, offset++) {
+		//for every read operation, we incremented buf offset i, bounce(in_block) offset, file offset
+		files_table.file[fd].offset = offset; //update file table current offset
+		if (offset >= size) {
+			return 0; //reach the end of the file
+		}
+		if (bounce_offset >= BLOCK_SIZE) { // if offset is >= 4096, aka > 4095
+			bounce_offset = 0; //reset bounce offset to the beginning
+			int next_data_index = data_ind(offset, file_start); //get next data block index
+			if (next_data_index == 0xFFFF) {
+				return 0; // return if we have no next data block
+			}
+			block_read((size_t )next_data_index, bounce_buffer); //get new bounce buffer
+		}
+		memcpy(buf + i, bounce_buffer + bounce_offset, 1); //copy 1 byte each read
+	}
 	return 0;
 }

@@ -356,7 +356,6 @@ int fs_write(int fd, void *buf, size_t count)
 	block_read((size_t )data_index, bounce_buffer);
 	size_t bounce_offset = offset % BLOCK_SIZE; //get local bounce offset for the bounce buf(first data block)
 	int size_incrementing_flag = 0;
-
 	for (size_t i = 0; i < count; i++, bounce_offset++, offset++) {
 		files_table.file[fd].offset = offset; //update file table current offset
 		//for every write operation, we incremented buf offset i, bounce(in_block) offset, file offset
@@ -380,9 +379,9 @@ int fs_write(int fd, void *buf, size_t count)
 			block_read((size_t )data_index, bounce_buffer); //get new bounce buffer
 		}
 		memcpy(bounce_buffer + bounce_offset, buf + i, 1); //copy 1 byte each write: buf -> bounce
-		//writing in 2 cases: reaching the final count OR bounce_offset is 4095
-		if (i == count - 1 || bounce_offset == BLOCK_SIZE - 1)
-			block_write((size_t )data_index, bounce_buffer);
+		// Potential Performance improvements: writing in 2 cases: reaching the final count OR bounce_offset is 4095
+		// which is: if (i == count - 1 || bounce_offset == BLOCK_SIZE - 1)
+		block_write((size_t )data_index, bounce_buffer);
 		if (size_incrementing_flag == 1){ // if we are writing new bytes to the file
 			rootdir.entry[root_index].size_file ++; // increment the size file
 		}

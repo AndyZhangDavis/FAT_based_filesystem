@@ -10,7 +10,7 @@
 
 
 struct SuperBlock {
-	uint64_t signature;
+	char signature[8];
 	uint16_t total_blocks_num;
 	uint16_t root_index;
 	uint16_t data_start;
@@ -82,43 +82,46 @@ int fs_mount(const char *diskname)
 	if (super.root_index + 1 != super.data_start)
 		return -1;
 
-	// The huge fat array consists of num_data_blocks uint16_t elements
+	// The FAT has array attribute which consists of num_data_blocks two bytes long data block indexes
 	fat.arr = (uint16_t*)malloc(super.data_blocks_num * sizeof(uint16_t));
+	// FAT start at block index # 1
 	size_t i = 1;
+	// Mapping the reading block to FAT : we use bounce buffer 
 	void *buffer = (void*)malloc(BLOCK_SIZE);
 	for (; i < super.root_index; i++) {
 		// for each (i-1)th fat block, loads
 		// fat block offset starts at 1 instead of 0, so mapping is i-1
-		block_read(i, buffer);
+		if (block_read(i, buffer) == -1)
+			return -1;
 		memcpy(fat.arr + (i-1)*BLOCK_SIZE, buffer, BLOCK_SIZE);
 	}
+	// The first entry of the FAT (entry #0) is always invalid is 0xFFFF
 	if (fat.arr[0] != 0xFFFF)
-		return -1; // The first entry of the FAT (entry #0) is always invalid is 0xFFFF.
+		return -1; 
 
 	// load the root dir infos
-	retval = block_read(super.root_index, &rootdir);
-	if (retval == -1)
+	if (block_read(super.root_index, &rootdir) == -1)
 		return -1;
+
 	return 0;
 }
 
 int fs_umount(void)
 {
-	int retval = block_write(0, &super);
-	if (retval == -1)
+	if (block_write(0,&super)==-1){
 		return -1;
+	}
 	size_t i = 1;
 	for (; i < super.root_index; i++) {
 		// for each fat block, writes the block into
 		// fat block offset starts at 1 instead of 0, so mapping is i-1
-		retval = block_write(i, fat.arr + (i-1) * BLOCK_SIZE);
-		if (retval == -1)
+		if (block_write(i, fat.arr + (i-1) * BLOCK_SIZE) == -1){
 			return -1;
+		}
 	}
-	retval = block_write(super.root_index, &rootdir);
-	if (retval == -1)
+	if (block_write(super.root_index, &rootdir) == -1){
 		return -1;
-
+	}
 	return block_disk_close();
 }
 
@@ -143,17 +146,18 @@ int fs_info(void)
 		if (rootdir.entry[i].filename[0] == '\0')
 			num_free_root++;
 	}
-
 	printf("rdir_free_ratio=%d/%d\n", num_free_root, FS_FILE_MAX_COUNT);
 	return 0;
 }
 
 int fs_create(const char *filename)
 {
-	if (filename == NULL || strlen(filename) > FS_FILENAME_LEN)
+	// Verify that filename to create is valid 
+	if (filename == NULL || strlen(filename) > FS_FILENAME_LEN || filename[strlen(filename)-1] != '\0')
 		return -1;
 	// NEXT we check first before we create file
 	int file_count = 0;
+	// Searching  through root directory
 	for (int i = 0; i < FS_FILE_MAX_COUNT; i++) {
 		if (rootdir.entry[i].filename[0] != '\0') {
 			file_count += 1; // if the entry isn't for empty file, file count incremented
@@ -162,9 +166,10 @@ int fs_create(const char *filename)
 			return -1; // file already exists
 		}
 	}
+	// The root directory already contains FS_FILE_MAX_COUNT files.
 	if (file_count >= FS_FILE_MAX_COUNT)
-		return -1; // the root directory already contains FS_FILE_MAX_COUNT files.
-	//done checking, move forward for creation
+		return -1; 
+	//After checking, move forward for creation
 	for (int i = 0; i < FS_FILE_MAX_COUNT; i++) {
 		//An empty entry is defined by the first character of the entry’s filename being equal to the NULL character.
 		if (rootdir.entry[i].filename[0] == '\0') {

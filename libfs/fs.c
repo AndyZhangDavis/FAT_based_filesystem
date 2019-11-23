@@ -19,13 +19,10 @@ struct SuperBlock {
 	uint8_t  paddings[4079];
 } __attribute__((packed));
 
-struct SuperBlock super;
-
 struct FAT {
 	uint16_t *arr;
 } __attribute__((packed));
 
-struct FAT fat;
 
 struct Entry {
 	uint8_t filename[FS_FILENAME_LEN];
@@ -38,7 +35,6 @@ struct RootDirectory {
 	struct Entry entry[FS_FILE_MAX_COUNT];
 } __attribute__((packed));
 
-struct RootDirectory rootdir;
 
 struct File {
 	uint8_t filename[FS_FILENAME_LEN];
@@ -51,19 +47,34 @@ struct FilesTable {
 };
 
 struct FilesTable files_table;
+struct RootDirectory rootdir;
+struct SuperBlock super;
+struct FAT fat;
 
 int fs_mount(const char *diskname)
 {
-	int retval = block_disk_open(diskname);
-	if (retval == -1)
+	// try to open the disk 
+	if (block_disk_open(diskname) == -1){
 		return -1; // -1 if virtual disk file @diskname cannot be opened
+	}
+	// Read the first block of the disk : super block 
 	block_read(0, &super);
+	
+	// error checking: verify that the file system has the expected format
 	if (1 + super.fat_blocks_num + 1 + super.data_blocks_num != super.total_blocks_num)
-		return -1; //super(1) + FAT + root(1) + data == TOTAL
+		return -1; // super(1) + FAT + root(1) + data == TOTAL
+	// error checking : verify that the total_blocks_num equal to what block_dick_count() return
 	if(super.total_blocks_num != block_disk_count())
 		return -1;
+	// error checking : verify signature of super block 
+    if (memcmp("ECS150FS", super.signature, 8) != 0)
+        return -1;
+	
+	// The size/byte length of the FAT
 	int total_bytes = super.data_blocks_num * 2;
+	// Total spanning block for FAT : ceiling make sure enough space for all indexe
 	uint8_t ceilVal = (uint8_t )(total_bytes / BLOCK_SIZE) + ((total_bytes % BLOCK_SIZE) != 0);
+	// error checking : verify that block indexing is following specification
 	if (super.fat_blocks_num != ceilVal)
 		return -1; // ceil of total_bytes / BLOCK_SIZE != fat num
 	if (super.fat_blocks_num + 1 != super.root_index)

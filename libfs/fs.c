@@ -68,7 +68,7 @@ int fs_mount(const char *diskname)
 		return -1;
 	// error checking : verify signature of super block 
     if (memcmp("ECS150FS", super.signature, 8) != 0)
-        return -1;
+        {return -1;}
 	
 	// The size/byte length of the FAT
 	int total_bytes = super.data_blocks_num * 2;

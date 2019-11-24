@@ -310,7 +310,7 @@ int fs_lseek(int fd, size_t offset)
 	return 0;
 }
 
-int data_ind(size_t offset, uint16_t file_start) {
+uint16_t data_ind(size_t offset, uint16_t file_start) {
 	//return index of data block according to the offset
 	// file_start is the starting fat index
 	// offset is the file current offset
@@ -406,13 +406,15 @@ int fs_write(int fd, void *buf, size_t count)
 				// Enough data block for this file
 				data_index = data_ind(offset, file_start); //get next data block index
 			}
-		}
 		uint16_t block_number = data_index + super.data_start; //data_index = fat index + offset
-		block_read((size_t )block_number, bounce_buffer); //get new bounce buffer
+                block_read((size_t )block_number, bounce_buffer); //get new bounce buffer
+		}
+		
 		memcpy(bounce_buffer + bounce_offset, buf + i, 1); //copy 1 byte each write: buf -> bounce
 		count_byte++;
 		// Potential Performance improvements: writing in 2 cases: reaching the final count OR bounce_offset is 4095
 		// which is: if (i == count - 1 || bounce_offset == BLOCK_SIZE - 1)
+		uint16_t block_number = data_index + super.data_start;
 		block_write((size_t )block_number, bounce_buffer);
 		
 		if (size_incrementing_flag == 1){ // if we are writing new bytes to the file

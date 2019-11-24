@@ -351,6 +351,7 @@ int fs_write(int fd, void *buf, size_t count)
 		return -1; // out of bounds
 	if (files_table.file[fd].filename[0] == '\0')
 		return -1; // not currently opened
+
 	char *filename = (char*)files_table.file[fd].filename; //get the filename
 	size_t offset = files_table.file[fd].offset;
 	int size = fs_stat(fd); //get fd size
@@ -369,7 +370,12 @@ int fs_write(int fd, void *buf, size_t count)
 
 	if (size == 0) {
 		//the file is empty with no allocated data block
-		rootdir.entry[root_index].first_data_index = fat_1stEmpty_ind();
+		uint16_t next_fat_index = fat_1stEmpty_ind(); 
+		if (next_fat_index == 0xFFFF){
+			return 0;
+		}else{
+			rootdir.entry[root_index].first_data_index  = next_fat_index;
+		}
 		file_start = rootdir.entry[root_index].first_data_index; //update our file_start
 	}
 

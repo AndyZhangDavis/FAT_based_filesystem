@@ -8,7 +8,7 @@
 ./test_fs.x info disk.fs >lib.stdout 2>lib.stderr
 
 # create 5 files onto host 
-for i in $(seq -w 1 5); do echo "hello world" > test${i}; done
+for i in $(seq -w 1 6); do echo "hello world" > test${i}; done
 # add 5 files to disk.fs
 for i in $(seq -w 1 5); do ./fs_ref.x add disk.fs test${i}; done
 # remove file to disk.fs
@@ -20,7 +20,9 @@ for i in $(seq -w 1 5); do ./fs_ref.x add disk.fs test${i}; done
 ./fs_ref.x info disk.fs >ref.stdout 2>ref.stderr
 ./fs_ref.x ls disk.fs >ref.stdout 2>ref.stderr
 # Remove all files in disk.fs and execute same operation in our program to compare the result 
-for i in $(seq -w 1 6); do ./fs_ref.x rm disk.fs test${i}; done
+for i in $(seq -w 1 2); do ./fs_ref.x rm disk.fs test${i}; done
+for i in $(seq -w 4 6); do ./fs_ref.x rm disk.fs test${i}; done
+
 # add 5 files to disk.fs
 for i in $(seq -w 1 5); do ./test_fs.x add disk.fs test${i}; done
 # remove file to disk.fs
@@ -32,7 +34,9 @@ for i in $(seq -w 1 5); do ./test_fs.x add disk.fs test${i}; done
 ./test_fs.x info disk.fs >lib.stdout 2>lib.stderr
 ./fs_ref.x ls disk.fs >lib.stdout 2>lib.stderr
 # remove all files
-for i in $(seq -w 1 6); do ./test_fs.x rm disk.fs test${i}; done
+for i in $(seq -w 1 2); do ./test_fs.x rm disk.fs test${i}; done
+for i in $(seq -w 4 6); do ./test_fs.x rm disk.fs test${i}; done
+
 
 # put output files into variables
 REF_STDOUT=$(cat ref.stdout)

@@ -34,8 +34,10 @@ The objectives of this programming project are:
    padding 
 4. RootDirectory: an array of 128 entries stored in the block following the FAT
 5. File : this is the data structure to store information about the
-   corresponding file such as file name and offset size 
-6. FilesTable : a data structure to keep track of all the open files 
+   corresponding file such as file name and current offset for the file
+6. FilesTable : a data structure to keep track of all the open files (file
+   descriptor). We have array of open files object and a integer number to
+   indicate the total number of openning files. 
 
 ## Implementation Details
 1. `fs_mount()`: To implement the mounting function, which makes the file system
@@ -144,3 +146,119 @@ disk mount/umount,we list the non-exist disk by and check if the output of
 `fs_ref.x` and `test_fs.x` matched.  Also we create several files in host
 directory including the file with invalid file name.  We then compared  
 with our program and took account of valid file names to the reference program.
+
+7. `fs_open()`: The first step before we open the file is to handle the error
+   case. We need to verify that if the filename is valid, if there are maximum
+   files openning and if the file does not exist in disk.After that, we traverse
+   through our file table `files_table.file[i]` to find the first empty file
+   descriptor. In our implementation, we are using static variable and the Null
+   character file names indicates that the current file descriptor is empty. At
+   that point, we increment the number of open files by one and copy the file
+   name and initilize 0 offset. The function will return the index of current
+   point in file table.
+   ```c++
+    if (files_table.file[i].filename[0] == '\0') {
+                files_table.num_open++; //increament open files count
+                // copy the file name
+                memcpy(files_table.file[i].filename, filename, FS_FILENAME_LEN); 
+                files_table.file[i].offset = 0; //set offset to 0
+                ret_fd = i; // get the fd to return
+                break;
+        }
+    ```
+
+8. `fs_close()`: this function fist check if the file descriptor input parameter
+   is valid (if out of bound) or if the file descriptor does not have opened
+   file. After that, we set the `files_table.file[fd].filename[0]` to null
+   character which indicate the empty entry and reset the offset to 0. Also we
+   decrement the number of open file and then return. 
+
+9. `fs_stat()`: the function `fs_stat()` returns the file size corresponding to
+   the file descriptor. We first iterate through our file table to find the
+   pairing file name at the file descriptor. Then we iterating through our root
+   dir to get the information (size) of the file. 
+
+10. `fs_lseek()`: the function allows user to move the offset to the file. We
+    set the offset by first finding the file descriptor at file table and sets
+    the offset of the fd to the @offset.
+
+11. `fs_read()`: we first do the preliminary checks to determine that if the
+    file was open in file table or if the reading bytes and file descriptor are
+    valid. After that, we continue to read the file. The first step is to load
+    the filename , current offset and size of the file descriptor from file
+    table. In order to read data block by block on our FAT correctly, we need to
+    search the first data block index and root index of the file in root
+    directory, which is the starting point for the file data. Then we determined
+    the actual starting block in this read operation given the specific offset
+    point by `data_ind`. The `data_ind` return index of data block according to
+    the offset and declared as the following: 
+    ```c++
+        int count_offset = BLOCK_SIZE - 1; 
+        uint16_t data_index = file_start;
+        while (data_index != 0xFFFF && count_offset < offset) {
+            if (fat.arr[data_index] == 0xFFFF)
+                return data_index + super.data_start; 
+            data_index = fat.arr[data_index]; 
+            count_offset += BLOCK_SIZE; 
+        }
+        return data_index + super.data_start; 
+    ```    
+    The actual block number is equal to the index in FAT + the actual starting
+    data block index . With the correct data block index, the next step is to
+    read from the starting block accordning to offset. We initialize a bounce
+    buffer and call `block_read((size_t )start_data_index, bounce_buffer);` to
+    read the block to `bounce_buffer`. Since the offset can be non-zero and
+    might not be the starting point of the current block, we needed to read from
+    an local offset within the block. We divided the given offset by the
+    BLOCK_SIZE and the remainder is the actual local offset we need within the
+    first data block and store as `bounce_offset`. Given the local offset point
+    we need to start on, we use for loop to read the total given number of bytes
+    from there byte by byte and for every read operation, we incremented buf
+    offset i, bounce(in_block) offset, file offset by one. At the same time we
+    update the offset of the file descriptor to current reading offset. We have
+    the variable `size` which is the total of the current file so that we can
+    check if the current file offset reach the end of the file. Since the
+    bounce_offset is to keep trakc of the local offset in the current data
+    block, we need to update the value to 0 if the offset reach the end of the
+    block. We find the next data block index by `int next_data_index =
+    data_ind(offset, file_start);` and update the bounce buffer by read the new
+    data block.
+    ```c++
+        for (size_t i = 0; i < count; i++, bounce_offset++, offset++) {..}
+    ```
+    We use `memcpy` to extract the data from bounce buffer to the `buf` as 
+    ```c++
+    memcpy(buf + i, bounce_buffer + bounce_offset, 1);
+    ```
+    Once reading is complete it returns the number of bytes read. If the read
+    requests more bytes than in the file we simply return the number of bytes
+    until the EOF is reached.  
+12. `fs_write()`: Similar as the reading operation,we first do the prelimitary
+    check and continue to load the data with correct offset mapping. We find the
+    first starting data block and continue write operation at that point.
+    Instead of reading the data, we need to overwrite the data with given
+    `count` bytes starting at that point. However, in case of writing to empty
+    file without any data block, the index of the first data block be FAT_EOC.We
+    should first allocate the data block for this file. We initiaze the first
+    data block for the file in root directory by `fat_1stEmpty_ind()`. This
+    function searched the index of first free data blocks (value 0) in FAT array
+    and update the entry value to 0xFFFF and return the current index . If there
+    is no more free data block in FAT, then it will return 0xFFFF which
+    indicates that there is no more data block for writing new data. After that,
+    given the first starting data block index of this file, we did the same
+    thing as reading operation to load the first data block into buffer.And then
+    writing the data byte by byte. The reason why we need the current data block
+    buffer because we want to resume the overall data block if the current
+    offset is not at the beginning of the block. By iteraing through data block
+    byte by byte, we also need to increment the file size if the current offset
+    is greater than the total file size. We write the given buf value to bounce
+    buffer by `memcpy(bounce_buffer + bounce_offset, buf + i, 1);` and write the
+    bounce buffer to the data block by `block_write((size_t )data_index,
+    bounce_buffer);`. We repeated this process until all data required was  
+    written or until we ran out of blocks.
+
+## Testing Phase 3-4: 
+
+
+
+

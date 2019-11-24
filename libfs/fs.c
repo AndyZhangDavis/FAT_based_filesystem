@@ -233,25 +233,29 @@ int fs_ls(void)
 
 int fs_open(const char *filename)
 {
-	if (filename == NULL)
-		return -1; //-1 if @filename is invalid
-	// check whether file exists in root directory
+	// Error verification: @filename is valid
+	if (filename == NULL || strnlen(filename, FS_FILENAME_LEN) >= FS_FILENAME_LEN)
+		return -1; 
+
+	// Error verification:: check whether file exists in root directory
 	int fd_find = -1;
 	for (int i = 0; i < FS_FILE_MAX_COUNT; i++) {
 		if (strcmp((char*)rootdir.entry[i].filename, filename) == 0)
 			fd_find = 1;
 	}
+
 	if (fd_find == -1)
 		return -1; // there is no file named @filename to open
-	// check whether we have over 32 files opened
+
+	// Error verification: check whether we have over 32 files opened
 	if (files_table.num_open == FS_OPEN_MAX_COUNT)
 		return -1; // _OPEN_MAX_COUNT files currently open
 
-	//after 3 checks we proceed to open the file
+	//after error checking we proceed to open the file
 	int ret_fd = -1;
 	for (int i = 0; i < FS_OPEN_MAX_COUNT; i++) {
+		// if the filename first character is NULL, then it's empty file slot
 		if (files_table.file[i].filename[0] == '\0') {
-			// if the filename first character is NULL, then it's empty file slot
 			files_table.num_open++; //increament open files count
 			memcpy(files_table.file[i].filename, filename, FS_FILENAME_LEN); // copy the file name
 			files_table.file[i].offset = 0; //set offset to 0
@@ -362,11 +366,13 @@ int fs_write(int fd, void *buf, size_t count)
 	}
 	if (root_index == -1 || file_start == 0)
 		return -1; // file not found or file start with FAT 0, so weird
+
 	if (size == 0) {
 		//the file is empty with no allocated data block
 		rootdir.entry[root_index].first_data_index = fat_1stEmpty_ind();
 		file_start = rootdir.entry[root_index].first_data_index; //update our file_start
 	}
+
 	void *bounce_buffer = (void*)malloc(BLOCK_SIZE);
 	int data_index = data_ind(offset, file_start);
 	block_read((size_t )data_index, bounce_buffer);
@@ -375,7 +381,6 @@ int fs_write(int fd, void *buf, size_t count)
 	for (size_t i = 0; i < count; i++, bounce_offset++, offset++) {
 		files_table.file[fd].offset = offset; //update file table current offset
 		//for every write operation, we incremented buf offset i, bounce(in_block) offset, file offset
-
 		if (offset >= size) // if reach the end of the file and we are still writing
 			size_incrementing_flag = 1; //start to incrementing the size of the file
 
@@ -413,10 +418,13 @@ int fs_read(int fd, void *buf, size_t count)
 		return -1; // out of bounds
 	if (files_table.file[fd].filename[0] == '\0')
 		return -1; // not currently opened
+
 	char *filename = (char*)files_table.file[fd].filename; //get the filename
 	size_t offset = files_table.file[fd].offset;
+
 	int size = fs_stat(fd); //get fd size
 	uint16_t file_start = 0xFFFF;
+
 	//now we get the first data index for file
 	int root_index = -1;
 	for (int i = 0; i < FS_FILE_MAX_COUNT; i++) {
@@ -426,6 +434,7 @@ int fs_read(int fd, void *buf, size_t count)
 			break;
 		}
 	}
+
 	if (size == 0) //if the file is empty
 		return 0; //cannot read anything, return 0
 	if (root_index == -1 || file_start == 0xFFFF || file_start == 0)
@@ -436,6 +445,7 @@ int fs_read(int fd, void *buf, size_t count)
 	void *bounce_buffer = (void*)malloc(BLOCK_SIZE);
 	int start_data_index = data_ind(offset, file_start);
 	block_read((size_t )start_data_index, bounce_buffer);
+	
 	size_t bounce_offset = offset % BLOCK_SIZE; //get local bounce offset for the bounce buf(first data block)
 	for (size_t i = 0; i < count; i++, bounce_offset++, offset++) {
 		//for every read operation, we incremented buf offset i, bounce(in_block) offset, file offset

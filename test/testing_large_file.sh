@@ -18,23 +18,33 @@ echo "Hi!" >> file2
 ./fs_ref.x stat disk.fs file2 >ref.stdout 2>ref.stderr
 ./fs_ref.x ls disk.fs >ref.stdout 2>ref.stderr
 
-# remove all files
 for i in $(seq -w 1 2); do ./fs_ref.x rm disk.fs file${i}; done
+./fs_ref.x ls disk.fs >ref.stdout 2>ref.stderr
+./fs_ref.x add disk.fs file2 
+./fs_ref.x stat disk.fs file2 >ref.stdout 2>ref.stderr
+
+# remove all files
+./fs_ref.x rm disk.fs file2
 
 # Compared to our result 
 
 # Add the large file to disk : only add 3 block size in file 
-./test_fs.x add disk.fs file1 >lib.stdout 2>lib.stderr
+./test_fs.x add disk.fs 
 ./test_fs.x cat disk.fs file1 >lib.stdout 2>lib.stderr
 ./test_fs.x stat disk.fs file1 >lib.stdout 2>lib.stderr
 
 # Add another file 
-./test_fs.x add disk.fs file2 >lib.stdout 2>lib.stderr
+./test_fs.x add disk.fs 
 ./test_fs.x stat disk.fs file2 >lib.stdout 2>lib.stderr
 ./test_fs.x ls disk.fs >lib.stdout 2>lib.stderr
 
-# remove all files
 for i in $(seq -w 1 2); do ./test_fs.x rm disk.fs file${i}; done
+./test_fs.x ls disk.fs >lib.stdout 2>lib.stderr
+./test_fs.x add disk.fs file2 
+./test_fs.x stat disk.fs file2 >lib.stdout 2>lib.stderr
+
+# remove all files
+./test_fs.x rm disk.fs file2
 
 # put output files into variables
 REF_STDOUT=$(cat ref.stdout)

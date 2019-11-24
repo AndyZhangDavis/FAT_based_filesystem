@@ -399,20 +399,22 @@ int fs_write(int fd, void *buf, size_t count)
 					return count_byte; // return if we have no next data block
 				}
 				fat.arr[data_index] = next_fat_index; //update fat array linked structure, cur points to next
-				data_index = next_fat_index + super.data_start; //data_index = fat index + offset
+				data_index = next_fat_index;
 			} else {
+				// Enough data block for this file
 				data_index = data_ind(offset, file_start); //get next data block index
 			}
-			block_read((size_t )data_index, bounce_buffer); //get new bounce buffer
 		}
+		uint16_t block_number = data_index + super.data_start; //data_index = fat index + offset
+		block_read((size_t )block_number, bounce_buffer); //get new bounce buffer
 		memcpy(bounce_buffer + bounce_offset, buf + i, 1); //copy 1 byte each write: buf -> bounce
 		count_byte++;
 		// Potential Performance improvements: writing in 2 cases: reaching the final count OR bounce_offset is 4095
 		// which is: if (i == count - 1 || bounce_offset == BLOCK_SIZE - 1)
-		block_write((size_t )data_index, bounce_buffer);
+		block_write((size_t )block_number, bounce_buffer);
+		
 		if (size_incrementing_flag == 1){ // if we are writing new bytes to the file
 			rootdir.entry[root_index].size_file ++; // increment the size file
-			block_write(super.root_index, &rootdir);
 		}
 	}
 	return count_byte;

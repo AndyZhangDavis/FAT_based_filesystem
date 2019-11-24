@@ -9,12 +9,12 @@ for i in $(seq -w 1 10000); do echo "hello world!" >> file1;done
 echo "Hi!" >> file2
 
 # Add the large file to disk : only add 3 block size in file 
-./fs_ref.x add disk.fs file1 >ref.stdout 2>ref.stderr
+./fs_ref.x add disk.fs file1 
 ./fs_ref.x cat disk.fs file1 >ref.stdout 2>ref.stderr
 ./fs_ref.x stat disk.fs file1 >ref.stdout 2>ref.stderr
 
 # Add another file 
-./fs_ref.x add disk.fs file2 >ref.stdout 2>ref.stderr
+./fs_ref.x add disk.fs file2 
 ./fs_ref.x stat disk.fs file2 >ref.stdout 2>ref.stderr
 ./fs_ref.x ls disk.fs >ref.stdout 2>ref.stderr
 

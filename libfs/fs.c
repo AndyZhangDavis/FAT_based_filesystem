@@ -176,7 +176,6 @@ int fs_create(const char *filename)
 			memcpy(rootdir.entry[i].filename, filename, FS_FILENAME_LEN); // copy the file name
 			rootdir.entry[i].size_file = 0; // the root dir has size of 0
 			rootdir.entry[i].first_data_index = 0xFFFF;  // the first data starts from 0xFFFF
-			block_write(super.root_index, &rootdir); // write the root directory into block
 			break;
 		}
 	}
@@ -413,6 +412,7 @@ int fs_write(int fd, void *buf, size_t count)
 		block_write((size_t )data_index, bounce_buffer);
 		if (size_incrementing_flag == 1){ // if we are writing new bytes to the file
 			rootdir.entry[root_index].size_file ++; // increment the size file
+			block_write(super.root_index, &rootdir);
 		}
 	}
 	return count_byte;

@@ -137,16 +137,6 @@ The objectives of this programming project are:
     printf("file: %s, size: %i, data_blk: %i\n", (char*)cur.filename, cur.size_file, 
         cur.first_data_index);
 ```
-
-## Testing Phase 1-2 : 
-By testing the implementation of phase 1 and 2, we implement our testing in
-`testing1_2.sh`. In this shell script, we create several virtual disk with
-different name and size by `./fs_make.x _ _`. To take account for the invalid
-disk mount/umount,we list the non-exist disk by and check if the output of
-`fs_ref.x` and `test_fs.x` matched.  Also we create several files in host
-directory including the file with invalid file name.  We then compared  
-with our program and took account of valid file names to the reference program.
-
 7. `fs_open()`: The first step before we open the file is to handle the error
    case. We need to verify that if the filename is valid, if there are maximum
    files openning and if the file does not exist in disk.After that, we traverse
@@ -257,7 +247,24 @@ with our program and took account of valid file names to the reference program.
     bounce_buffer);`. We repeated this process until all data required was  
     written or until we ran out of blocks.
 
-## Testing Phase 3-4: 
+## Testing
+1. `testing_large_file.sh` : in this testing case, we create a large file that
+   has 17 data block size in host. We create a disk that has only two block
+   size. To add this large file into the disk, we can expect that it only write
+   part of (2 block size) the large file into disk. Also we add another new file
+   into the disk and we should expect the failure in adding because the disk has
+   been full
+
+2. `testing_create_remove.sh`: By testing the implementation of phase 1 and 2,
+   we implement our testing in `testing1_2.sh`. In this shell script, we create
+   several virtual disk with different name and size by `./fs_make.x _ _`. To
+   take account for the invalid disk mount/umount,we list the non-exist disk by
+   and check if the output of `fs_ref.x` and `test_fs.x` matched.  Also we
+   create several files in host directory including the file with invalid file
+   name.  We then compared with our program and took account of valid file names
+   to the reference program.
+
+3.
 
 
 

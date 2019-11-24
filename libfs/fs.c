@@ -320,7 +320,7 @@ int data_ind(size_t offset, uint16_t file_start) {
 		// while the data_index doesn't reach to the end of the file
 		// AND meanwhile we haven't reached the offset position
 		if (fat.arr[data_index] == 0xFFFF)
-			return data_index + super.data_start; //return index cannot be 0xFFFF
+			return data_index; //return index cannot be 0xFFFF
 		data_index = fat.arr[data_index]; // update data_index through block chain
 		count_offset += BLOCK_SIZE; // increment counts
 	}
@@ -379,7 +379,7 @@ int fs_write(int fd, void *buf, size_t count)
 	}
 
 	void *bounce_buffer = (void*)malloc(BLOCK_SIZE);
-	int data_index = data_ind(offset, file_start);
+	uint16_t data_index = data_ind(offset, file_start);
 	// FAT entry contents must be added to the data block start index in order to find the real block number on disk.
 	uint16_t block_number = data_index + super.data_start;
 	block_read((size_t )block_number, bounce_buffer);

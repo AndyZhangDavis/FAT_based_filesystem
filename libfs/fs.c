@@ -384,6 +384,7 @@ int fs_write(int fd, void *buf, size_t count)
 	block_read((size_t )data_index, bounce_buffer);
 	size_t bounce_offset = offset % BLOCK_SIZE; //get local bounce offset for the bounce buf(first data block)
 	int size_incrementing_flag = 0;
+	int count_byte = 0;
 	for (size_t i = 0; i < count; i++, bounce_offset++, offset++) {
 		files_table.file[fd].offset = offset; //update file table current offset
 		//for every write operation, we incremented buf offset i, bounce(in_block) offset, file offset
@@ -396,7 +397,7 @@ int fs_write(int fd, void *buf, size_t count)
 				// if we're incrementing size of the file and need new space
 				uint16_t next_fat_index = fat_1stEmpty_ind(); //get current data block index
 				if (next_fat_index == 0xFFFF) {
-					return 0; // return if we have no next data block
+					return count_byte; // return if we have no next data block
 				}
 				fat.arr[data_index] = next_fat_index; //update fat array linked structure, cur points to next
 				data_index = next_fat_index + super.data_start; //data_index = fat index + offset
@@ -406,6 +407,7 @@ int fs_write(int fd, void *buf, size_t count)
 			block_read((size_t )data_index, bounce_buffer); //get new bounce buffer
 		}
 		memcpy(bounce_buffer + bounce_offset, buf + i, 1); //copy 1 byte each write: buf -> bounce
+		count_byte++;
 		// Potential Performance improvements: writing in 2 cases: reaching the final count OR bounce_offset is 4095
 		// which is: if (i == count - 1 || bounce_offset == BLOCK_SIZE - 1)
 		block_write((size_t )data_index, bounce_buffer);
@@ -413,7 +415,7 @@ int fs_write(int fd, void *buf, size_t count)
 			rootdir.entry[root_index].size_file ++; // increment the size file
 		}
 	}
-	return 0;
+	return count_byte;
 }
 
 int fs_read(int fd, void *buf, size_t count)
@@ -453,21 +455,23 @@ int fs_read(int fd, void *buf, size_t count)
 	block_read((size_t )start_data_index, bounce_buffer);
 	
 	size_t bounce_offset = offset % BLOCK_SIZE; //get local bounce offset for the bounce buf(first data block)
+	int count_byte = 0;
 	for (size_t i = 0; i < count; i++, bounce_offset++, offset++) {
 		//for every read operation, we incremented buf offset i, bounce(in_block) offset, file offset
 		files_table.file[fd].offset = offset; //update file table current offset
 		if (offset >= size) {
-			return 0; //reach the end of the file
+			return count_byte; //reach the end of the file
 		}
 		if (bounce_offset >= BLOCK_SIZE) { // if offset is >= 4096, aka > 4095
 			bounce_offset = 0; //reset bounce offset to the beginning
 			int next_data_index = data_ind(offset, file_start); //get next data block index
 			if (next_data_index == 0xFFFF) {
-				return 0; // return if we have no next data block
+				return count_byte; // return if we have no next data block
 			}
 			block_read((size_t )next_data_index, bounce_buffer); //get new bounce buffer
 		}
 		memcpy(buf + i, bounce_buffer + bounce_offset, 1); //copy 1 byte each read
+		count_byte++;
 	}
-	return 0;
+	return count_byte;
 }

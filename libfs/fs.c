@@ -153,7 +153,7 @@ int fs_info(void)
 int fs_create(const char *filename)
 {
 	// Verify that filename to create is valid 
-	if (filename == NULL || strlen(filename) > FS_FILENAME_LEN || filename[strlen(filename)-1] != '\0')
+	if (filename == NULL || strlen(filename) > FS_FILENAME_LEN )
 		return -1;
 	// NEXT we check first before we create file
 	int file_count = 0;

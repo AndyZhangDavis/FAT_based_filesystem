@@ -136,3 +136,11 @@ The objectives of this programming project are:
         cur.first_data_index);
 ```
 
+## Testing Phase 1-2 : 
+By testing the implementation of phase 1 and 2, we implement our testing in
+`testing1_2.sh`. In this shell script, we create several virtual disk with
+different name and size by `./fs_make.x _ _`. To take account for the invalid
+disk mount/umount,we list the non-exist disk by and check if the output of
+`fs_ref.x` and `test_fs.x` matched.  Also we create several files in host
+directory including the file with invalid file name.  We then compared  
+with our program and took account of valid file names to the reference program.

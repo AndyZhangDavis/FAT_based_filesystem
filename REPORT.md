@@ -267,12 +267,12 @@ The objectives of this programming project are:
 3. read_offset: One more command added to `test_fs.c`.
    In file it is linked to function **thread_fs_read_offset** which can test
    the function of reading file with certain offset and size. Command takes in 
-   following args: <diskname> <host filename><offset><read size>
+   following args: diskname; host filename; offset; read size
 
 4. write_offset: One more command added to `test_fs.c`.
    In file it is linked to function **thread_write_offset** which can test
    the function of writing file with certain offset. Command takes in following
-   args: <diskname> <host filename><write filename><offset>
+   args: diskname; host; filename; write filename; offset
 
 
 

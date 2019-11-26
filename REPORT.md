@@ -263,8 +263,10 @@ The objectives of this programming project are:
    create several files in host directory including the file with invalid file
    name.  We then compared with our program and took account of valid file names
    to the reference program.
-
-3.
+   
+3. thread_fs_write_offset: One more command added to `test_fs.c` which can test
+   the function of writing file with certain offset. Command takes in following
+   args: <diskname> <host filename><write filename><offset>
 
 
 

@@ -325,6 +325,56 @@ void thread_fs_write_offset(void *arg) {
 	close(fd);
 }
 
+void thread_fs_read_offset(void *arg) {
+  struct thread_arg *t_arg = arg;
+	char *diskname, *read_filename;
+  size_t offset, read_size;
+	int fd;
+	int read;
+
+	if (t_arg->argc < 4)
+		die("Usage: <diskname> <host filename><offset><count>");
+
+	diskname = t_arg->argv[0];
+  read_filename = t_arg->argv[1];
+  offset = (size_t)atoi(t_arg->argv[2]);
+  read_size = (size_t)atoi(t_arg->argv[3]);
+  char *buf = (char*)malloc(read_size * sizeof(char));
+  
+	/* Open file on host computer */
+	/* Now, deal with our filesystem:
+	 * - mount, create a new file, copy content of host file into this new
+	 *   file, close the new file, and umount
+	 */
+	if (fs_mount(diskname))
+		die("Cannot mount diskname");
+   
+  fd = fs_open(read_filename);
+	if (fd < 0) {
+		fs_umount();
+		die("Cannot open file");
+	}
+  if (fs_lseek(fd, offset) == -1) {
+    die("Lseek Error");
+  }
+	read = fs_read(fd, buf, read_size);
+ 
+	if (fs_close(fd)) {
+		fs_umount();
+		die("Cannot close file");
+	}
+
+	if (fs_umount())
+		die("Cannot unmount diskname");
+   
+  printf("%s\n", buf);
+  
+	printf("Read file '%s' (%d/%zu bytes)\n", read_filename, read,
+		   read_size);
+
+	close(fd);
+}
+
 size_t get_argv(char *argv)
 {
 	long int ret = strtol(argv, NULL, 0);
@@ -343,7 +393,8 @@ static struct {
 	{ "rm",		thread_fs_rm },
 	{ "cat",	thread_fs_cat },
 	{ "stat",	thread_fs_stat },
-  { "write_offset", thread_fs_write_offset }
+  { "write_offset", thread_fs_write_offset },
+  { "read_offset", thread_fs_read_offset }
 };
 
 void usage(char *program)

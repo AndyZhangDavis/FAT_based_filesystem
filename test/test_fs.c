@@ -231,7 +231,7 @@ void thread_fs_ls(void *arg)
 	char *diskname;
 
 	if (t_arg->argc < 1)
-		die("Usage: <diskname> <filename>");
+		die("Usage: <diskname>");
 
 	diskname = t_arg->argv[0];
 
@@ -263,6 +263,68 @@ void thread_fs_info(void *arg)
 		die("Cannot unmount diskname");
 }
 
+void thread_fs_write_offset(void *arg) {
+  struct thread_arg *t_arg = arg;
+	char *diskname, *input_filename, *output_filename, *buf;
+  size_t offset;
+	int fd, fs_fd;
+	struct stat st;
+	int written;
+
+	if (t_arg->argc < 4)
+		die("Usage: <diskname> <host filename><write filename><offset>");
+
+	diskname = t_arg->argv[0];
+	input_filename = t_arg->argv[1];
+  output_filename = t_arg->argv[2];
+  offset = (size_t)atoi(t_arg->argv[3]);
+
+	/* Open file on host computer */
+	fd = open(input_filename, O_RDONLY);
+	if (fd < 0)
+		die_perror("open");
+	if (fstat(fd, &st))
+		die_perror("fstat");
+	if (!S_ISREG(st.st_mode))
+		die("Not a regular file: %s\n", input_filename);
+
+	/* Map file into buffer */
+	buf = mmap(NULL, st.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+	if (!buf)
+		die_perror("mmap");
+
+	/* Now, deal with our filesystem:
+	 * - mount, create a new file, copy content of host file into this new
+	 *   file, close the new file, and umount
+	 */
+	if (fs_mount(diskname))
+		die("Cannot mount diskname");
+
+	fs_fd = fs_open(output_filename);
+	if (fs_fd < 0) {
+		fs_umount();
+		die("Cannot open file");
+	}
+  if (fs_lseek(fs_fd, offset) == -1) {
+    die("Lseek Error");
+  }
+	written = fs_write(fs_fd, buf, st.st_size);
+
+	if (fs_close(fs_fd)) {
+		fs_umount();
+		die("Cannot close file");
+	}
+
+	if (fs_umount())
+		die("Cannot unmount diskname");
+
+	printf("Wrote file '%s' (%d/%zu bytes)\n", output_filename, written,
+		   st.st_size);
+
+	munmap(buf, st.st_size);
+	close(fd);
+}
+
 size_t get_argv(char *argv)
 {
 	long int ret = strtol(argv, NULL, 0);
@@ -280,7 +342,8 @@ static struct {
 	{ "add",	thread_fs_add },
 	{ "rm",		thread_fs_rm },
 	{ "cat",	thread_fs_cat },
-	{ "stat",	thread_fs_stat }
+	{ "stat",	thread_fs_stat },
+  { "write_offset", thread_fs_write_offset }
 };
 
 void usage(char *program)

@@ -231,7 +231,7 @@ void thread_fs_ls(void *arg)
 	char *diskname;
 
 	if (t_arg->argc < 1)
-		die("Usage: <diskname>");
+		die("Usage: <diskname> <filename>");
 
 	diskname = t_arg->argv[0];
 

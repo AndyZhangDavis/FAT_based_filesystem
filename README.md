@@ -1,5 +1,5 @@
 # FAT_based_filesystem
-*Waiyu Lam; Wenhao Su*
+*Waiyu Lam; Wenhao Su*    
 *Instructors: Prof. Joël Porquet Lupine*
 
 ## Objectives 
